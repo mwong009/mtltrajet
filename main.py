@@ -698,7 +698,7 @@ class RBM(Network):
         )
 
         # mask gradient updates
-        for i, (p, g) in grads:
+        for i, (p, g) in enumerate(grads):
             if p in self.cbias_f:
                 for mask in self.cbias_m + self.B_params_m:
                     if p.name + '_mask' == mask.name:
@@ -733,6 +733,14 @@ class RBM(Network):
                 wrt=params,
                 disconnected_inputs='ignore'
             )
+
+            # mask gradient updates
+            for i, (p, g) in enumerate(grads):
+                if p in self.cbias_f:
+                    for mask in self.cbias_m + self.B_params_m:
+                        if p.name + '_mask' == mask.name:
+                            grads[i] = (p, g * mask)
+
             # a list of update expressions (variable, update expression)
             update = self.update_opt(params, grads, lr)
             for var, expr in update:
