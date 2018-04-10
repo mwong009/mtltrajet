@@ -253,7 +253,7 @@ class RBM(Network):
 
             # create logit mask for beta parameters
             size = shp_visible + shp_output
-            print('B', size)
+            print('B', var_name, size)
             mask = np.zeros(size)
             mask[:, :, :-1] = 1.
             mask = mask.flatten()
@@ -708,7 +708,7 @@ class RBM(Network):
 
         # mask gradient updates
         for i, (p, g) in enumerate(zip(params, grads)):
-            if p in self.cbias_f:
+            if p in self.cbias_f + self.B_params_f:
                 for mask in self.cbias_m + self.B_params_m:
                     if p.name + '_mask' == mask.name:
                         grads[i] = (g * mask)
@@ -745,7 +745,7 @@ class RBM(Network):
 
             # mask gradient updates
             for i, (p, g) in enumerate(zip(params, grads)):
-                if p in self.cbias_f:
+                if p in self.cbias_f + self.B_params_f:
                     for mask in self.cbias_m + self.B_params_m:
                         if p.name + '_mask' == mask.name:
                             grads[i] = (g * mask)
@@ -816,19 +816,19 @@ class RBM(Network):
         self.add_latent()
 
         for item in x:
+            print('x', item.name.strip('/'), item['data'].shape[1:])
             self.add_node(
                 var_dtype=item.attrs['dtype'],
                 name=item.name.strip('/'),
                 shp_visible=item['data'].shape[1:]
             )
-            print('x', item.name.strip('/'), item['data'].shape[1:])
         for item in y:
+            print('y', item.name.strip('/'), item['data'].shape[1:])
             self.add_connection_to(
                 var_dtype=item.attrs['dtype'],
                 name=item.name.strip('/'),
                 shp_output=item['data'].shape[1:]
             )
-            print('y', item.name.strip('/'), item['data'].shape[1:])
 
         lr = self.hyperparameters['learning_rate']
         k = self.hyperparameters['gibbs_steps']
@@ -894,17 +894,12 @@ class RBM(Network):
             on_unused_input='ignore'
         )
 
-        self.get_params = theano.function(
-            inputs=[],
-            outputs=params,
-            name=[p.name for p in params],
-            allow_input_downcast=True,
-            on_unused_input='ignore'
-        )
-
 
 def main(rbm, h5py_dataset, epochs):
     rbm.hyperparameters['n_samples'] = h5py_dataset.attrs['n_rows']
+    for key, value in rbm.hyperparameters.items():
+        if isinstance(value, int) or isinstance(value, float):
+            print(key, value)
 
     # define the variables to use
     x = [
@@ -955,6 +950,10 @@ def main(rbm, h5py_dataset, epochs):
             print('checkpoint')
             rbm.save_params(epoch)
             rbm.plot_curves()
+
+        # check parameters
+        for v, n in zip(rbm.B_params+rbm.cbias, rbm.B_params_f+rbm.cbias_f):
+            np.savetxt('params/'+n.name+'.csv', v, fmt='%.3f', delimiter=',')
 
     stderrs = rbm.std_err()
     params = rbm.get_params()
