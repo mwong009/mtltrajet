@@ -1,0 +1,35 @@
+districtid,codemamrot,districtname,type,abrev,area,perim
+1,REM05,Outremont,Arrondissement,OM,3813355.723,10836.670
+2,REM17,LaSalle,Arrondissement,LS,25197267.822,25259.849
+3,66072,Mont-Royal,Ville liée,MR,7445560.042,18314.038
+4,REM19,Ville-Marie,Arrondissement,VM,21500631.743,26585.959
+5,REM21,Le Plateau-Mont-Royal,Arrondissement,PM,8151665.080,13158.328
+6,66062,Hampstead,Ville liée,HS,1768055.283,5875.848
+7,REM20,Le Sud-Ouest,Arrondissement,SO,18144269.494,29633.161
+11,REM16,Montréal-Nord,Arrondissement,MN,12430208.227,16416.941
+8,REM33,Rivière-des-Prairies-Pointe-aux-Trembles,Arrondissement,RP,50047004.470,38573.067
+24,REM24,Rosemont-La Petite-Patrie,Arrondissement,RO,15886530.273,19394.163
+9,REM27,Lachine,Arrondissement,LC,23127785.994,25399.526
+18,REM14,Saint-Léonard,Arrondissement,LN,13550689.456,16325.544
+10,66087,Dorval,Ville liée,DV,28156149.656,32357.566
+12,REM32,L'Île-Bizard-Sainte-Geneviève,Arrondissement,IS,36532506.084,28399.248
+19,66047,Montréal-Ouest,Ville liée,MO,1419449.311,7276.142
+13,66102,Kirkland,Ville liée,KL,9687581.293,17837.584
+20,66097,Pointe-Claire,Ville liée,PC,34446517.160,27073.297
+21,66092,L'Île-Dorval,Ville liée,ID,180508.863,1814.424
+14,66142,Dollard-des-Ormeaux,Ville liée,DO,15065158.748,21358.343
+15,66127,Senneville,Ville liée,SV,18609960.840,21837.310
+16,REM23,Ahuntsic-Cartierville,Arrondissement,AC,25571187.483,37790.097
+17,66058,Côte-Saint-Luc,Ville liée,CL,6810209.672,16248.554
+30,REM09,Anjou,Arrondissement,AJ,13878193.713,18275.947
+31,REM31,Pierrefonds-Roxboro,Arrondissement,PR,33765273.410,51360.092
+22,REM22,Mercier-Hochelaga-Maisonneuve,Arrondissement,MH,27408411.868,33178.813
+23,REM34,Côte-des-Neiges-Notre-Dame-de-Grâce,Arrondissement,CN,21483754.691,35557.954
+25,REM15,Saint-Laurent,Arrondissement,LR,43077847.482,36589.407
+26,66107,Beaconsfield,Ville liée,BF,24922505.750,23295.573
+27,REM25,Villeray-Saint-Michel-Parc-Extension,Arrondissement,VS,16477356.138,21180.049
+28,66032,Westmount,Ville liée,WM,4016301.006,8959.397
+29,66007,Montréal-Est,Ville liée,ME,13974007.395,16860.148
+32,66117,Sainte-Anne-de-Bellevue,Ville liée,BV,11150545.735,19274.046
+33,REM12,Verdun,Arrondissement,VD,22328673.534,20314.697
+34,66112,Baie-d'Urfé,Ville liée,BU,8025920.556,11652.905

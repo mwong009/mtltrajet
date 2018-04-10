@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import theano.tensor as T
 from collections import OrderedDict
+
 # internal imports
 from network import Network
 from utility import SetupH5PY
