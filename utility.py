@@ -76,7 +76,7 @@ class SetupH5PY(object):
             )
             f.create_dataset(
                 name='mode/label',
-                data=df.mode.values-1,
+                data=df['mode'].values-1,
                 dtype=DTYPE_FLOATX
             )
             f['mode'].attrs['dtype'] = 'category'
@@ -98,7 +98,7 @@ class SetupH5PY(object):
             # ! avg_speed
             f.create_dataset(
                 name='avg_speed/data',
-                data=df['avg_speed']values.reshape(len(df), 1, -1)/18.726,
+                data=df['avg_speed'].values.reshape(len(df), 1)/18.726,
                 dtype=DTYPE_FLOATX
             )
             f['avg_speed'].attrs['stdev'] = 18.726
@@ -108,7 +108,7 @@ class SetupH5PY(object):
             # ! duration
             f.create_dataset(
                 name='duration/data',
-                data=(df['duration']values/60).reshape(len(df), 1, -1)/131.666,
+                data=(df['duration'].values/60).reshape(len(df), 1)/131.666,
                 dtype=DTYPE_FLOATX
             )
             f['duration'].attrs['stdev'] = 131.666
@@ -118,7 +118,7 @@ class SetupH5PY(object):
             # ! n_coord
             f.create_dataset(
                 name='n_coord/data',
-                data=df['n_coord']values.reshape(len(df), 1, -1)/132.854,
+                data=df['n_coord'].values.reshape(len(df), 1)/132.854,
                 dtype=DTYPE_FLOATX
             )
             f['n_coord'].attrs['stdev'] = 132.854
@@ -128,88 +128,90 @@ class SetupH5PY(object):
             # ! trip_km
             f.create_dataset(
                 name='trip_km/data',
-                data=df['trip_km']values.reshape(len(df), 1, -1)/10.584,
+                data=df['trip_km'].values.reshape(len(df), 1)/10.584,
                 dtype=DTYPE_FLOATX
             )
             f['trip_km'].attrs['stdev'] = 10.584
             f['trip_km'].attrs['mean'] = 8.847
             f['trip_km'].attrs['dtype'] = 'real'
 
-            # ! startinterval_sin
+            # ! interval
             f.create_dataset(
-                name='startintervalsin/data',
-                data=df['startintervalsin']values.reshape(len(df), 1, -1),
+                name='interval/data',
+                data=df[['startintervalsin', 'startintervalcos',
+                         'endintervalsin', 'endintervalcos']].values,
                 dtype=DTYPE_FLOATX
             )
-            f['startintervalsin'].attrs['stdev'] = 0.725
-            f['startintervalsin'].attrs['mean'] = -0.273
-            f['startintervalsin'].attrs['dtype'] = 'real'
-
-            # ! startinterval_cos
-            f.create_dataset(
-                name='startintervalcos/data',
-                data=df['startintervalcos']values.reshape(len(df), 1, -1),
-                dtype=DTYPE_FLOATX
-            )
-            f['startintervalcos'].attrs['stdev'] = 0.558
-            f['startintervalcos'].attrs['mean'] = -0.296
-            f['startintervalcos'].attrs['dtype'] = 'real'
-
-            # ! endinterval_sin
-            f.create_dataset(
-                name='endintervalsin/data',
-                data=df['endintervalsin']values.reshape(len(df), 1, -1),
-                dtype=DTYPE_FLOATX
-            )
-            f['endintervalsin'].attrs['stdev'] = 0.705
-            f['endintervalsin'].attrs['mean'] = -0.304
-            f['endintervalsin'].attrs['dtype'] = 'real'
-
-            # ! endinterval_cos
-            f.create_dataset(
-                name='endintervalcos/data',
-                data=df['endintervalcos']values.reshape(len(df), 1, -1),
-                dtype=DTYPE_FLOATX
-            )
-            f['endintervalcos'].attrs['stdev'] = 0.580
-            f['endintervalcos'].attrs['mean'] = -0.270
-            f['endintervalcos'].attrs['dtype'] = 'real'
+            f['interval'].attrs['dtype'] = 'real'
 
             # ! dow
             f.create_dataset(
-                name='dowsin/data',
-                data=df['startdowsin']values.reshape(len(df), 1, -1),
+                name='dow/data',
+                data=df[['startdowsin', 'startdowcos']].values,
                 dtype=DTYPE_FLOATX
             )
-            f['dowsin'].attrs['stdev'] = 0.668
-            f['dowsin'].attrs['mean'] = -0.149
-            f['dowsin'].attrs['dtype'] = 'real'
-
-            f.create_dataset(
-                name='dowcos/data',
-                data=df['startdowcos']values.reshape(len(df), 1, -1),
-                dtype=DTYPE_FLOATX
-            )
-            f['dowcos'].attrs['stdev'] = 0.725
-            f['dowcos'].attrs['mean'] = -0.273
-            f['dowcos'].attrs['dtype'] = 'real'
+            f['dow'].attrs['dtype'] = 'real'
 
             # ! dom
             f.create_dataset(
-                name='domsin/data',
-                data=df['startdomsin']values.reshape(len(df), 1, -1),
+                name='dom/data',
+                data=df[['startdomsin', 'startdomcos']].values,
                 dtype=DTYPE_FLOATX
             )
-            f['domsin'].attrs['stdev'] = 0.654
-            f['domsin'].attrs['mean'] = -0.394
-            f['domsin'].attrs['dtype'] = 'real'
+            f['dom'].attrs['dtype'] = 'real'
 
-            # ! dom
+            # ! doy
             f.create_dataset(
-                name='domcos/data',
-                data=df['startdomcos']values.reshape(len(df), 1, -1),
+                name='doy/data',
+                data=df[['startdoysin', 'startdoycos']].values,
                 dtype=DTYPE_FLOATX
             )
-            f['domcos'].attrs['stdev'] = 0.645
-            f['domcos'].attrs['mean'] = 0.021
-            f['domcos'].attrs['dtype'] = 'real
+            f['doy'].attrs['dtype'] = 'real'
+
+            # ! startpoint
+            f.create_dataset(
+                name='startpoint/data',
+                data=df[['pt0lat', 'pt0lon', 'pt1lat', 'pt1lon',
+                         'pt2lat', 'pt2lon', 'pt3lat', 'pt3lon',
+                         'pt4lat', 'pt4lon']].values,
+                dtype=DTYPE_FLOATX
+            )
+            f['startpoint'].attrs['dtype'] = 'real'
+
+            # ! endpoint
+            f.create_dataset(
+                name='endpoint/data',
+                data=df[['ptnm0lat', 'ptnm0lon', 'ptnm1lat', 'ptnm1lon',
+                         'ptnm2lat', 'ptnm2lon', 'ptnm3lat', 'ptnm3lon',
+                         'ptnm4lat', 'ptnm4lon']].values,
+                dtype=DTYPE_FLOATX
+            )
+            f['endpoint'].attrs['dtype'] = 'real'
+
+            # ! startdistrict
+            f.create_dataset(
+                name='startdistrict/data',
+                data=np.eye(df['startdistrictid'].values.max()+1)[
+                     df['startdistrictid'].values].reshape(len(df), 1, -1),
+                dtype=DTYPE_FLOATX
+            )
+            f.create_dataset(
+                name='startdistrict/label',
+                data=df['startdistrictid'].values,
+                dtype=DTYPE_FLOATX
+            )
+            f['startdistrict'].attrs['dtype'] = 'category'
+
+            # ! enddistrict
+            f.create_dataset(
+                name='enddistrict/data',
+                data=np.eye(df['enddistrictid'].values.max()+1)[
+                     df['enddistrictid'].values].reshape(len(df), 1, -1),
+                dtype=DTYPE_FLOATX
+            )
+            f.create_dataset(
+                name='enddistrict/label',
+                data=df['enddistrictid'].values,
+                dtype=DTYPE_FLOATX
+            )
+            f['enddistrict'].attrs['dtype'] = 'category'
