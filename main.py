@@ -253,6 +253,7 @@ class RBM(Network):
 
             # create logit mask for beta parameters
             size = shp_visible + shp_output
+            print('B', size)
             mask = np.zeros(size)
             mask[:, :, :-1] = 1.
             mask = mask.flatten()
@@ -315,12 +316,19 @@ class RBM(Network):
         utility = 0  # (rows,)
         for dtype, v, W, vbias in zip(dtypes, visibles, W_params, vbiases):
             if dtype == VARIABLE_DTYPE_REAL:
-                vbias = vbias.dimshuffle('x', 0, 1)
-                # utility = sum_{i} 0.5(v-vbias)^2 : (rows,)
-                utility += T.sum(T.sqr(v - vbias) / 2., axis=(1, 2))
+                if vbias.ndim > 1:
+                    vbias = vbias.dimshuffle('x', 0, 1)
+                    utility += T.sum(T.sqr(v - vbias) / 2., axis=(1, 2))
+                else:
+                    vbias = vbias.dimshuffle('x', 0)
+                    utility += T.sum(T.sqr(v - vbias) / 2., axis=1)
+
             else:
-                # utility = v.vbias : (rows,)
-                utility += T.tensordot(v, vbias, axes=[[1, 2], [0, 1]])
+                if vbias.ndim > 1:
+                    # utility = v.vbias : (rows,)
+                    utility += T.tensordot(v, vbias, axes=[[1, 2], [0, 1]])
+                else:
+                    utility += T.tensordot(v, vbias, axes=[[1], [0]])
 
             if W.ndim == 2:
                 # wx_b = vW + hbias : (rows, hiddens)
@@ -417,10 +425,11 @@ class RBM(Network):
                 # xB : (rows, items, cats) . (items, cats, items, outs)
                 # utility[i] = cbias + Bx : (rows, outs)
                 # utility[i] = cbias + Bx : (rows, outs)
-                utility[i] += T.tensordot(
-                    x, T.sum(B, axis=-2),
-                    axes=[[1, 2], [0, 1]]
-                )
+                B = T.sum(B, axis=-2)
+                if x.ndim > 2:
+                    utility[i] += T.tensordot(x, B, axes=[[1, 2], [0, 1]])
+                else:
+                    utility[i] += T.tensordot(x, B, axes=[[1], [0]])
 
         # sum over hiddens axis
         # sum_k \ln(1+\exp(wx_b)) : (rows, hiddens, outs) -- > (rows, outs)
@@ -698,11 +707,11 @@ class RBM(Network):
         )
 
         # mask gradient updates
-        for i, (p, g) in enumerate(grads):
+        for i, (p, g) in enumerate(zip(params, grads)):
             if p in self.cbias_f:
                 for mask in self.cbias_m + self.B_params_m:
                     if p.name + '_mask' == mask.name:
-                        grads[i] = (p, g * mask)
+                        grads[i] = (g * mask)
 
         # update Gibbs chain with update expressions from updates list[]
         updates = self.update_opt(params, grads, lr)
@@ -735,11 +744,11 @@ class RBM(Network):
             )
 
             # mask gradient updates
-            for i, (p, g) in enumerate(grads):
+            for i, (p, g) in enumerate(zip(params, grads)):
                 if p in self.cbias_f:
                     for mask in self.cbias_m + self.B_params_m:
                         if p.name + '_mask' == mask.name:
-                            grads[i] = (p, g * mask)
+                            grads[i] = (g * mask)
 
             # a list of update expressions (variable, update expression)
             update = self.update_opt(params, grads, lr)
@@ -812,12 +821,14 @@ class RBM(Network):
                 name=item.name.strip('/'),
                 shp_visible=item['data'].shape[1:]
             )
+            print('x', item.name.strip('/'), item['data'].shape[1:])
         for item in y:
             self.add_connection_to(
                 var_dtype=item.attrs['dtype'],
                 name=item.name.strip('/'),
                 shp_output=item['data'].shape[1:]
             )
+            print('y', item.name.strip('/'), item['data'].shape[1:])
 
         lr = self.hyperparameters['learning_rate']
         k = self.hyperparameters['gibbs_steps']
@@ -840,6 +851,7 @@ class RBM(Network):
         start_idx = i * batch_size
         end_idx = (i + 1) * batch_size
 
+        print('constructing Theano computational graph...')
         self.train = theano.function(
             inputs=[i],
             outputs=tensor_outputs,
@@ -974,4 +986,4 @@ net = {
 if __name__ == '__main__':
     dataset = SetupH5PY.load_dataset('data.h5')
     model = RBM('net1', net)
-    main(model, dataset, epochs=2)
+    main(model, dataset, epochs=5)
