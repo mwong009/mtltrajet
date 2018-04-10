@@ -78,3 +78,56 @@ class Network(object):
         )
         fig.set
         fig.savefig(self.name)
+
+    @staticmethod
+    def get_loglikelihood(prob, label):
+        """
+        get_sample_loglikelihood func
+            Approximation to the reconstruction error
+
+        Parameters
+        ----------
+        prob : `[T.shared]`
+            list of precomputed "logits"
+        label : `[T.shared]`
+            list of output "labels"
+
+        Returns
+        -------
+        nll : `scalar`
+            value of the negative log likelihood
+        """
+        nll = -T.mean(T.log(prob)[T.arange(label.shape[0]), label])
+        return nll
+
+    @staticmethod
+    def get_prediction(model, inputs):
+        """
+        get_prediction func
+            Function to simulate (stochastic) predicted outputs
+            # TODO: not functional
+
+        Parameters
+        ----------
+        inputs : `[T.tensors]`
+            list of input tensors
+        preactivation : `[T.shared]`
+            list of precomputed "logits"
+
+        Returns
+        -------
+        """
+        logits = model.discriminative_free_energy(inputs)
+        for i, logit in enumerate(logits):
+            if dtype == VARIABLE_DTYPE_BINARY:
+                p_y_given_x = T.nnet.sigmoid(logit)
+            elif dtype == VARIABLE_DTYPE_CATEGORY:
+                if logit.ndim == 3:
+                    (d1, d2, d3) = logit.shape
+                    p_y_given_x = T.nnet.softmax(logit.reshape((d1 * d2, d3)))
+                else:
+                    p_y_given_x = T.nnet.softmax(logit)
+            elif dtype == VARIABLE_DTYPE_REAL:
+                v1_post -= 0
+            elif dtype == VARIABLE_DTYPE_INTEGER:
+                raise NotImplementedError
