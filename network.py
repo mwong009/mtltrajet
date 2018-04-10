@@ -35,7 +35,10 @@ class Network(object):
 
         # Optimizer
         opt = Optimizers()
-        self.update_opt = opt.adam_updates
+        if hyper['amsgrad']:
+            self.update_opt = opt.adam_updates
+        else:
+            self.update_opt = opt.sgd_updates
 
     def save_params(self, epoch):
         """
