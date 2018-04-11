@@ -82,8 +82,7 @@ class Network(object):
         fig.set
         fig.savefig(self.name)
 
-    @staticmethod
-    def get_loglikelihood(prob, label):
+    def get_loglikelihood(self, prob, label):
         """
         get_sample_loglikelihood func
             Approximation to the reconstruction error
@@ -100,7 +99,7 @@ class Network(object):
         nll : `scalar`
             value of the negative log likelihood
         """
-        nll = -T.mean(T.log(prob)[T.arange(label.shape[0]), label])
+        nll = -T.sum((T.log(prob)[T.arange(label.shape[0]), label]))
         return nll
 
     @staticmethod

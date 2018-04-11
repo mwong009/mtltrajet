@@ -62,8 +62,9 @@ class SetupH5PY(object):
         return f
 
     @staticmethod
-    def compile_dataset(filename='datatable_sm.csv'):
+    def compile_dataset(filename='datatable_sm.csv', frac=1.):
         df = pd.read_csv(filename)
+        df = df.sample(frac=frac)
         with h5py.File('data.h5', 'w') as f:
             f.attrs['n_rows'] = len(df)
 
@@ -79,7 +80,7 @@ class SetupH5PY(object):
                 data=df['mode'].values-1,
                 dtype=DTYPE_FLOATX
             )
-            f['mode'].attrs['dtype'] = 'category'
+            f['mode'].attrs['dtype'] = VARIABLE_TYPE_CATEGORY
 
             # ! purpose
             f.create_dataset(
@@ -93,7 +94,7 @@ class SetupH5PY(object):
                 data=df['purpose'].values-1,
                 dtype=DTYPE_FLOATX
             )
-            f['purpose'].attrs['dtype'] = 'category'
+            f['purpose'].attrs['dtype'] = VARIABLE_TYPE_CATEGORY
 
             # ! avg_speed
             f.create_dataset(
@@ -103,7 +104,7 @@ class SetupH5PY(object):
             )
             f['avg_speed'].attrs['stdev'] = 18.726
             f['avg_speed'].attrs['mean'] = 23.277
-            f['avg_speed'].attrs['dtype'] = 'real'
+            f['avg_speed'].attrs['dtype'] = VARIABLE_TYPE_INTEGER
 
             # ! duration
             f.create_dataset(
@@ -113,7 +114,7 @@ class SetupH5PY(object):
             )
             f['duration'].attrs['stdev'] = 131.666
             f['duration'].attrs['mean'] = 24.34
-            f['duration'].attrs['dtype'] = 'real'
+            f['duration'].attrs['dtype'] = VARIABLE_TYPE_INTEGER
 
             # ! n_coord
             f.create_dataset(
@@ -123,7 +124,7 @@ class SetupH5PY(object):
             )
             f['n_coord'].attrs['stdev'] = 132.854
             f['n_coord'].attrs['mean'] = 113.572
-            f['n_coord'].attrs['dtype'] = 'real'
+            f['n_coord'].attrs['dtype'] = VARIABLE_TYPE_INTEGER
 
             # ! trip_km
             f.create_dataset(
@@ -133,60 +134,76 @@ class SetupH5PY(object):
             )
             f['trip_km'].attrs['stdev'] = 10.584
             f['trip_km'].attrs['mean'] = 8.847
-            f['trip_km'].attrs['dtype'] = 'real'
+            f['trip_km'].attrs['dtype'] = VARIABLE_TYPE_INTEGER
 
             # ! interval
+            stdev = [0.793, 0.557, 0.703, 0.576]
             f.create_dataset(
                 name='interval/data',
                 data=df[['startintervalsin', 'startintervalcos',
-                         'endintervalsin', 'endintervalcos']].values,
+                         'endintervalsin', 'endintervalcos']].values/stdev,
                 dtype=DTYPE_FLOATX
             )
-            f['interval'].attrs['dtype'] = 'real'
+            f['interval'].attrs['stdev'] = stdev
+            f['interval'].attrs['dtype'] = VARIABLE_TYPE_REAL
 
             # ! dow
+            stdev = [0.718, 0.690]
             f.create_dataset(
                 name='dow/data',
-                data=df[['startdowsin', 'startdowcos']].values,
+                data=df[['startdowsin', 'startdowcos']].values/stdev,
                 dtype=DTYPE_FLOATX
             )
-            f['dow'].attrs['dtype'] = 'real'
+            f['dow'].attrs['stdev'] = stdev
+            f['dow'].attrs['dtype'] = VARIABLE_TYPE_REAL
 
             # ! dom
+            stdev = [0.719, 0.679]
             f.create_dataset(
                 name='dom/data',
-                data=df[['startdomsin', 'startdomcos']].values,
+                data=df[['startdomsin', 'startdomcos']].values/stdev,
                 dtype=DTYPE_FLOATX
             )
-            f['dom'].attrs['dtype'] = 'real'
+            f['dom'].attrs['stdev'] = stdev
+            f['dom'].attrs['dtype'] = VARIABLE_TYPE_REAL
 
             # ! doy
+            stdev = [0.113, 0.152]
             f.create_dataset(
                 name='doy/data',
-                data=df[['startdoysin', 'startdoycos']].values,
+                data=df[['startdoysin', 'startdoycos']].values/stdev,
                 dtype=DTYPE_FLOATX
             )
-            f['doy'].attrs['dtype'] = 'real'
+            f['doy'].attrs['stdev'] = stdev
+            f['doy'].attrs['dtype'] = VARIABLE_TYPE_REAL
 
             # ! startpoint
+            stdev = [0.37042957, 0.59889923, 0.37042894, 0.59889845,
+                     0.37407628, 0.60479492, 0.37553437, 0.60715244,
+                     0.40837756, 0.66025098]
             f.create_dataset(
                 name='startpoint/data',
                 data=df[['pt0lat', 'pt0lon', 'pt1lat', 'pt1lon',
                          'pt2lat', 'pt2lon', 'pt3lat', 'pt3lon',
-                         'pt4lat', 'pt4lon']].values,
+                         'pt4lat', 'pt4lon']].values/stdev,
                 dtype=DTYPE_FLOATX
             )
-            f['startpoint'].attrs['dtype'] = 'real'
+            f['startpoint'].attrs['stdev'] = stdev
+            f['startpoint'].attrs['dtype'] = VARIABLE_TYPE_REAL
 
             # ! endpoint
+            stdev = [0.37042987, 0.59890127, 0.37042994, 0.59890116,
+                     0.37407723, 0.60479779, 0.37553557, 0.60715532,
+                     0.40837907, 0.66025432]
             f.create_dataset(
                 name='endpoint/data',
                 data=df[['ptnm0lat', 'ptnm0lon', 'ptnm1lat', 'ptnm1lon',
                          'ptnm2lat', 'ptnm2lon', 'ptnm3lat', 'ptnm3lon',
-                         'ptnm4lat', 'ptnm4lon']].values,
+                         'ptnm4lat', 'ptnm4lon']].values/stdev,
                 dtype=DTYPE_FLOATX
             )
-            f['endpoint'].attrs['dtype'] = 'real'
+            f['endpoint'].attrs['stdev'] = stdev
+            f['endpoint'].attrs['dtype'] = VARIABLE_TYPE_REAL
 
             # ! startdistrict
             f.create_dataset(
@@ -200,7 +217,7 @@ class SetupH5PY(object):
                 data=df['startdistrictid'].values,
                 dtype=DTYPE_FLOATX
             )
-            f['startdistrict'].attrs['dtype'] = 'category'
+            f['startdistrict'].attrs['dtype'] = VARIABLE_TYPE_CATEGORY
 
             # ! enddistrict
             f.create_dataset(
@@ -214,4 +231,4 @@ class SetupH5PY(object):
                 data=df['enddistrictid'].values,
                 dtype=DTYPE_FLOATX
             )
-            f['enddistrict'].attrs['dtype'] = 'category'
+            f['enddistrict'].attrs['dtype'] = VARIABLE_TYPE_CATEGORY
