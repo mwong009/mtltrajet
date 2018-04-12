@@ -19,7 +19,12 @@ class Network(object):
                 print("Error opening file: ", e)
         else:
             model_values = {}
-            curves = {'CD error': [], 'log likelihood': []}
+            curves = {
+                'CD error': [],
+                'MSE 1': [],
+                'MSE 2': [],
+                'log likelihood': []
+            }
             std_err = {}
 
         # initialize random number generator
@@ -47,7 +52,7 @@ class Network(object):
             params, unpickle and reshape.
 
         """
-        path = '{0:s}_epoch{1:d}.params'.format(self.name, epoch)
+        path = 'params/{0:s}_epoch{1:d}.params'.format(self.name, epoch)
         hyper = self.hyperparameters
         curves = self.monitoring_curves
         model_values = {}
@@ -66,8 +71,8 @@ class Network(object):
             curves = self.monitoring_curves
         rcParams['axes.xmargin'] = 0
         rcParams['axes.ymargin'] = 0
-        rcParams['figure.figsize'] = (12.8, 4.8)
-        fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
+        rcParams['figure.figsize'] = (12.8, 9.6)
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=2, ncols=2)
         ax1.set(title='CD loss', xlabel='iterations')
         ax1.plot(
             *zip(*curves['CD error']),
@@ -77,7 +82,20 @@ class Network(object):
         ax2.set(title='log likelihood loss', xlabel='iterations')
         ax2.plot(
             *zip(*curves['log likelihood']),
-            linewidth=0.5
+            linewidth=0.5,
+            color='C1'
+        )
+        ax3.set(title='MSE 1 loss', xlabel='iterations')
+        ax3.plot(
+            *zip(*curves['MSE 1']),
+            linewidth=0.5,
+            color='C2'
+        )
+        ax4.set(title='MSE 2 loss', xlabel='iterations')
+        ax4.plot(
+            *zip(*curves['MSE 2']),
+            linewidth=0.5,
+            color='C3'
         )
         fig.set
         fig.savefig(self.name)

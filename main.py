@@ -861,8 +861,9 @@ class RBM(Network):
         tensor_outputs = gibbs_cost + cost
         tensor_updates = gibbs_updates
 
-        input = [theano.shared(item['data'][:int(n_slice*n_samples)],
-                               borrow=True) for item in x] \
+        shared_inputs = [
+            theano.shared(item['data'][:int(n_slice*n_samples)],
+                          borrow=True) for item in x] \
             + [theano.shared(item['data'][:int(n_slice*n_samples)],
                              borrow=True) for item in y] \
             + [T.cast(theano.shared(item['label'][:int(n_slice*n_samples)],
@@ -879,7 +880,7 @@ class RBM(Network):
             updates=tensor_updates,
             givens={
                 key: val[start_idx: end_idx]
-                for key, val in zip(tensor_inputs, input)
+                for key, val in zip(tensor_inputs, shared_inputs)
             },
             name='train',
             allow_input_downcast=True,
@@ -897,9 +898,7 @@ class RBM(Network):
                 wrt=self.eval_params,
                 disconnected_inputs='ignore'
             )
-            cramer_rao_bound = [T.diag(1. / (h * (int(n_slice*n_samples)-1.)))
-                                for h in hessian]
-            sigma = [2 * T.sqrt(cr) for cr in cramer_rao_bound]
+            sigma = [T.sqrt(cr) for cr in [T.diag(1. / h) for h in hessian]]
             sigmas.extend(sigma)
 
         self.std_err = theano.function(
@@ -907,20 +906,8 @@ class RBM(Network):
             outputs=sigmas,
             name='std err',
             givens={
-                key: val[:None]
-                for key, val in zip(tensor_inputs, input)
-            },
-            allow_input_downcast=True,
-            on_unused_input='ignore'
-        )
-
-        self.get_params = theano.function(
-            inputs=[],
-            outputs=self.eval_params,
-            name='get params',
-            givens={
-                key: val[:None]
-                for key, val in zip(tensor_inputs, input)
+                key: val[:]
+                for key, val in zip(tensor_inputs, shared_inputs)
             },
             allow_input_downcast=True,
             on_unused_input='ignore'
@@ -961,6 +948,8 @@ def main(rbm, h5py_dataset, epochs):
     n_slice = rbm.hyperparameters['slice']
     n_batches = int(n_slice*n_samples) // batch_size
     t0 = time.time()
+    params = [p.eval() for p in rbm.B_params + rbm.cbias]
+    param_names = [p.name for p in rbm.eval_params]
 
     print('training the model...')
     epoch = 0
@@ -969,18 +958,17 @@ def main(rbm, h5py_dataset, epochs):
         cost = []
         for i in range(n_batches):
             cost_items = rbm.train(i)
-            if i % 100 == 0:
-                print(i, '/', n_batches, cost_items)
             cost.append(cost_items)
-            iter = (epoch - 1) * n_batches + i
+            if i == n_batches // 2:
+                print('{0:d}/{1:d} {cost} {time:.2f}m'.format(
+                    i, n_batches, cost=cost_items, time=(time.time()-t0)/60.))
         ep_cost = np.asarray(cost).sum(axis=0)
         print(("epoch {0:d}/{1:d} gibbs cost: {2:.3f},"
                " mse cost: {3:.3f}, {4:.3f},"
                " loglikelihood {5:.3f} [{6:.5f}s]").format(
                epoch, epochs, *ep_cost, time.time() - t0))
-        # curves = {'CD error': [], 'log likelihood': []}
-        rbm.monitoring_curves['CD error'].append((epoch, ep_cost[0]))
-        rbm.monitoring_curves['log likelihood'].append((epoch, ep_cost[1]))
+        for i, (key, curve) in enumerate(rbm.monitoring_curves.items()):
+            rbm.monitoring_curves[key].append((epoch, ep_cost[i]))
 
         if (epoch % 25) == 0:
             print('checkpoint')
@@ -988,31 +976,24 @@ def main(rbm, h5py_dataset, epochs):
             rbm.plot_curves()
 
         # check parameters
-        for v, n in zip(rbm.B_params+rbm.cbias, rbm.B_params_f+rbm.cbias_f):
-            np.savetxt('params/'+n.name+'.csv', v.eval().squeeze(), fmt='%.3f',
-                       delimiter=',')
+        for param, name in zip(params, param_names):
+            np.savetxt('params/'+name+'_'+rbm.name+'.csv', param.squeeze(), 
+                       fmt='%.3f', delimiter=',')
 
     stderrs = rbm.std_err()
-    params = rbm.get_params()
-    param_names = [p.name for p in rbm.eval_params]
-    for se, v, n in zip(stderrs, rbm.B_params+rbm.cbias, params):
-        v = v.eval().squeeze()
+    for se, param, name in zip(stderrs, params, param_names):
+        v = param.squeeze()
         shp = v.shape
-        np.savetxt('params/'+n.name+'stderrs.csv', se.reshape(shp),
+        np.savetxt('params/'+name+'stderrs.csv', se.reshape(shp),
                    fmt='%.3f', delimiter=',')
-        np.savetxt('params/'+n.name+'tstat.csv', v / se.reshape(shp),
+        np.savetxt('params/'+name+'tstat.csv', v / se.reshape(shp),
                    fmt='%.3f', delimiter=',')
 
-    # for name, param, stderr in zip(param_names, params, stderrs):
-    #     print(name)
-    #     print('beta   stderr    t-stat')
-    #     for i, (p, s) in enumerate(zip(param, stderr)):
-    #         print('{0: .3f} {1: .3f}   {2: .3f}'.format(p, s, p/s))
     print('train complete')
 
 net = {
     'debug': True,
-    'n_hidden': (8,),
+    'n_hidden': (2,),
     'seed': 1111,
     'batch_size': 128,
     'variable_dtypes': [VARIABLE_DTYPE_BINARY,
@@ -1020,14 +1001,34 @@ net = {
                         VARIABLE_DTYPE_CATEGORY],
     'noisy_rectifier': True,
     'learning_rate': 1e-3,
-    'gibbs_steps': 1,
+    'gibbs_steps': 2,
     'shapes': {},
     'amsgrad': True,
     'alpha': 1.0,
-    'slice': 0.25
+    'slice': 1.
 }
 
 if __name__ == '__main__':
     dataset = SetupH5PY.load_dataset('data.h5')
-    model = RBM('net1', net)
-    main(model, dataset, epochs=1)
+    model = RBM('net2', net)
+    main(model, dataset, epochs=100)
+    del(model)
+    net['n_hidden'] = (4,)
+    model = RBM('net4', net)
+    main(model, dataset, epochs=100)
+    del(model)
+    net['n_hidden'] = (8,)
+    model = RBM('net8', net)
+    main(model, dataset, epochs=100)
+    del(model)
+    net['n_hidden'] = (16,)
+    model = RBM('net16', net)
+    main(model, dataset, epochs=100)
+    del(model)
+    net['n_hidden'] = (32,)
+    model = RBM('net32', net)
+    main(model, dataset, epochs=100)
+    del(model)
+    net['n_hidden'] = (64,)
+    model = RBM('net64', net)
+    main(model, dataset, epochs=100)
