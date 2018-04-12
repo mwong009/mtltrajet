@@ -961,12 +961,13 @@ def main(rbm, h5py_dataset, epochs):
             cost.append(cost_items)
             if i == n_batches // 2:
                 print('{0:d}/{1:d} {cost} {time:.2f}m'.format(
-                    i, n_batches, cost=cost_items, time=(time.time()-t0)/60.))
+                    i, n_batches, cost=[np.round(c, 3) for c in cost_items],
+                    time=(time.time()-t0)/60.))
         ep_cost = np.asarray(cost).sum(axis=0)
         print(("epoch {0:d}/{1:d} gibbs cost: {2:.3f},"
                " mse cost: {3:.3f}, {4:.3f},"
-               " loglikelihood {5:.3f} [{6:.5f}s]").format(
-               epoch, epochs, *ep_cost, time.time() - t0))
+               " loglikelihood {5:.3f} t={6:.5f}m").format(
+               epoch, epochs, *ep_cost, (time.time()-t0)/60))
         for i, (key, curve) in enumerate(rbm.monitoring_curves.items()):
             rbm.monitoring_curves[key].append((epoch, ep_cost[i]))
 
@@ -977,7 +978,7 @@ def main(rbm, h5py_dataset, epochs):
 
         # check parameters
         for param, name in zip(params, param_names):
-            np.savetxt('params/'+name+'_'+rbm.name+'.csv', param.squeeze(), 
+            np.savetxt('params/'+name+'_'+rbm.name+'.csv', param.squeeze(),
                        fmt='%.3f', delimiter=',')
 
     stderrs = rbm.std_err()
