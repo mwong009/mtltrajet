@@ -138,7 +138,7 @@ class RBM(Network):
         if 'vbias_' + name in self.model_values.keys():
             value = self.model_values['vbias_'+name]
         else:
-            value = np.zeros(np.prod(shp_visible), DTYPE_FLOATX)
+            value = np.random.normal(0., 0.1, np.prod(shp_visible))
 
         vbias_f = theano.shared(value=value, name='vbias_'+name, borrow=True)
         vbias = T.reshape(vbias_f, size)
@@ -227,7 +227,7 @@ class RBM(Network):
         if c_name in self.model_values.keys():
             value = self.model_values[c_name]
         else:
-            value = np.zeros(np.prod(size), DTYPE_FLOATX)
+            value = np.random.normal(0., 0.1, np.prod(shp_output))
 
         cbias_f = theano.shared(value=value, name=c_name, borrow=True)
         cbias_m = theano.shared(value=mask, name=c_name+'_mask', borrow=True)
@@ -269,7 +269,7 @@ class RBM(Network):
             if b_name in self.model_values.keys():
                 value = self.model_values[b_name]
             else:
-                value = np.random.normal(0., 0.1, np.prod(size)) * mask
+                value = np.random.normal(0., 0.1, np.prod(size))
 
             B_f = theano.shared(value=value, name=b_name, borrow=True)
             B_m = theano.shared(value=mask, name=b_name+'_mask', borrow=True)
@@ -540,7 +540,7 @@ class RBM(Network):
                     size=v1.shape,
                     dtype=DTYPE_FLOATX
                 )
-                gumbel = - (- T.log(uniform + epsilon) + epsilon)
+                gumbel = - T.log(- T.log(uniform + epsilon) + epsilon)
                 # reshape softmax tensors to 2D matrix
                 if v1.ndim == 3:
                     (d1, d2, d3) = v1.shape
@@ -573,7 +573,7 @@ class RBM(Network):
                         std=v1_std,
                         dtype=DTYPE_FLOATX
                     )
-                    v1_sample = T.nnet.softplus(normal_sample)
+                    v1_sample = T.nnet.relu(normal_sample)
                 else:
                     # slower implementation of NReLu but more accurate
                     # values and samples exact integers from v1
@@ -928,6 +928,7 @@ def main(rbm, h5py_dataset, epochs):
         h5py_dataset['duration'],
         h5py_dataset['trip_km'],
         h5py_dataset['interval'],
+        h5py_dataset['n_coord'],
         h5py_dataset['dow'],
         h5py_dataset['dom'],
         h5py_dataset['doy'],
@@ -993,7 +994,7 @@ def main(rbm, h5py_dataset, epochs):
 
 net = {
     'debug': True,
-    'n_hidden': (2,),
+    'n_hidden': (5,),
     'seed': 1111,
     'batch_size': 128,
     'variable_dtypes': [VARIABLE_DTYPE_BINARY,
@@ -1010,25 +1011,12 @@ net = {
 
 if __name__ == '__main__':
     dataset = SetupH5PY.load_dataset('data.h5')
-    model = RBM('net2', net)
-    main(model, dataset, epochs=100)
+    model = RBM('net5', net)
+    main(model, dataset, epochs=10)
     del(model)
-    net['n_hidden'] = (4,)
-    model = RBM('net4', net)
-    main(model, dataset, epochs=100)
-    del(model)
-    net['n_hidden'] = (8,)
-    model = RBM('net8', net)
-    main(model, dataset, epochs=100)
-    del(model)
-    net['n_hidden'] = (16,)
-    model = RBM('net16', net)
-    main(model, dataset, epochs=100)
-    del(model)
-    net['n_hidden'] = (32,)
-    model = RBM('net32', net)
-    main(model, dataset, epochs=100)
-    del(model)
-    net['n_hidden'] = (64,)
-    model = RBM('net64', net)
-    main(model, dataset, epochs=100)
+    
+    for i in range(10, 55, step=5):
+        net['n_hidden'] = (i,)
+        model = RBM('net'+i, net)
+        main(model, dataset, epochs=10)
+        del(model)

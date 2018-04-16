@@ -72,7 +72,7 @@ class Network(object):
         rcParams['axes.xmargin'] = 0
         rcParams['axes.ymargin'] = 0
         rcParams['figure.figsize'] = (12.8, 9.6)
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=2, ncols=2)
+        fig, ([ax1, ax2], [ax3, ax4]) = plt.subplots(nrows=2, ncols=2)
         ax1.set(title='CD loss', xlabel='iterations')
         ax1.plot(
             *zip(*curves['CD error']),
