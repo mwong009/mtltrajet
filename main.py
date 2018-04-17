@@ -42,6 +42,7 @@ class RBM(Network):
         self.cbias_f = []
         # masks
         self.B_params_m = []      # list of the Bx mask
+        self.U_params_m = []      # list of the Uh mask
         self.cbias_m = []
 
     def add_latent(self, name='hbias', shp_hidden=None):
@@ -203,15 +204,25 @@ class RBM(Network):
 
         tsr_label = T.ivector(name + '_label')  # 1D vector of [int] labels
 
+        # create logit mask for hidden parameters
+        size = shp_output + shp_hidden
+        mask = np.zeros(size)
+        if len(size) == 3:
+            mask[:, :, :-1] = 1.
+        if len(size) == 4:
+            mask[:, :, :, :-1] = 1.
+        mask = mask.flatten()
+
         # Create the tensor shared variables as (items, outs, hiddens)
         w_name = 'W_' + name
         size = shp_output + shp_hidden
         if w_name in self.model_values.keys():
             value = self.model_values[w_name]
         else:
-            value = np.random.normal(0., 0.1, np.prod(size))
+            value = np.random.normal(0., 0.1, np.prod(size)) * mask
 
         W_f = theano.shared(value=value, name=w_name, borrow=True)
+        W_m = theano.shared(value=mask, name=w_name+'_mask', borrow=True)
         W = T.reshape(W_f, size)
 
         # create logit mask for asc parameters
@@ -227,7 +238,7 @@ class RBM(Network):
         if c_name in self.model_values.keys():
             value = self.model_values[c_name]
         else:
-            value = np.random.normal(0., 0.1, np.prod(shp_output))
+            value = np.random.normal(0., 0.1, np.prod(shp_output)) * mask
 
         cbias_f = theano.shared(value=value, name=c_name, borrow=True)
         cbias_m = theano.shared(value=mask, name=c_name+'_mask', borrow=True)
@@ -241,6 +252,7 @@ class RBM(Network):
         self.cbias.append(cbias)
         self.W_params_f.append(W_f)
         self.U_params_f.append(W_f)
+        self.U_params_m.append(W_m)
         self.cbias_f.append(cbias_f)
         self.cbias_m.append(cbias_m)
         self.params['W_' + name] = W_f
@@ -269,7 +281,7 @@ class RBM(Network):
             if b_name in self.model_values.keys():
                 value = self.model_values[b_name]
             else:
-                value = np.random.normal(0., 0.1, np.prod(size))
+                value = np.random.normal(0., 0.1, np.prod(size)) * mask
 
             B_f = theano.shared(value=value, name=b_name, borrow=True)
             B_m = theano.shared(value=mask, name=b_name+'_mask', borrow=True)
@@ -714,11 +726,11 @@ class RBM(Network):
         )
 
         # mask gradient updates
-        # for i, (p, g) in enumerate(zip(params, grads)):
-        #     if p in self.cbias_f + self.B_params_f:
-        #         for mask in self.cbias_m + self.B_params_m:
-        #             if p.name + '_mask' == mask.name:
-        #                 grads[i] = (g * mask)
+        for i, (p, g) in enumerate(zip(params, grads)):
+            if p in self.cbias_f + self.B_params_f + self.U_params_f:
+                for mask in self.cbias_m + self.B_params_m + self.U_params_m:
+                    if p.name + '_mask' == mask.name:
+                        grads[i] = (g * mask)
 
         # update Gibbs chain with update expressions from updates list[]
         updates = self.update_opt(params, grads, lr)
@@ -752,11 +764,11 @@ class RBM(Network):
             )
 
             # mask gradient updates
-            # for i, (p, g) in enumerate(zip(params, grads)):
-            #     if p in self.cbias_f + self.B_params_f:
-            #         for mask in self.cbias_m + self.B_params_m:
-            #             if p.name + '_mask' == mask.name:
-            #                 grads[i] = (g * mask)
+            for i, (p, g) in enumerate(zip(params, grads)):
+                if p in self.cbias_f + self.B_params_f + self.U_params_f:
+                    for m in self.cbias_m + self.B_params_m + self.U_params_m:
+                        if p.name + '_mask' == m.name:
+                            grads[i] = (g * m)
 
             # a list of update expressions (variable, update expression)
             update = self.update_opt(params, grads, lr)
@@ -927,13 +939,13 @@ def main(rbm, h5py_dataset, epochs):
         h5py_dataset['avg_speed'],
         h5py_dataset['duration'],
         h5py_dataset['trip_km'],
-        h5py_dataset['interval'],
         h5py_dataset['n_coord'],
+        h5py_dataset['interval'],
         h5py_dataset['dow'],
-        h5py_dataset['dom'],
-        h5py_dataset['doy'],
-        h5py_dataset['startpoint'],
-        h5py_dataset['endpoint'],
+        # h5py_dataset['dom'],
+        # h5py_dataset['doy'],
+        # h5py_dataset['startpoint'],
+        # h5py_dataset['endpoint'],
         h5py_dataset['startdistrict'],
         h5py_dataset['enddistrict']
     ]
@@ -949,7 +961,7 @@ def main(rbm, h5py_dataset, epochs):
     n_slice = rbm.hyperparameters['slice']
     n_batches = int(n_slice*n_samples) // batch_size
     t0 = time.time()
-    params = [p.eval() for p in rbm.B_params + rbm.cbias]
+    params = [p for p in rbm.B_params + rbm.cbias]
     param_names = [p.name for p in rbm.eval_params]
 
     print('training the model...')
@@ -965,31 +977,34 @@ def main(rbm, h5py_dataset, epochs):
                     i, n_batches, cost=[np.round(c, 3) for c in cost_items],
                     time=(time.time()-t0)/60.))
         ep_cost = np.asarray(cost).sum(axis=0)
-        print(("epoch {0:d}/{1:d} gibbs cost: {2:.3f},"
+        print(("epoch {0:d}/{1:d}"
+               " gibbs cost: {2:.3f},"
                " mse cost: {3:.3f}, {4:.3f},"
-               " loglikelihood {5:.3f} t={6:.5f}m").format(
-               epoch, epochs, *ep_cost, (time.time()-t0)/60))
+               " loglikelihood {5:.3f} t={time:.5f}m").format(
+               epoch, epochs, *ep_cost, time=(time.time()-t0)/60.))
         for i, (key, curve) in enumerate(rbm.monitoring_curves.items()):
             rbm.monitoring_curves[key].append((epoch, ep_cost[i]))
 
-        if (epoch % 25) == 0:
+        if (epoch % 5) == 0:
             print('checkpoint')
             rbm.save_params(epoch)
             rbm.plot_curves()
 
         # check parameters
         for param, name in zip(params, param_names):
-            np.savetxt('params/'+name+'_'+rbm.name+'.csv', param.squeeze(),
+            p = param.eval()
+            np.savetxt('params/'+name+'_'+rbm.name+'.csv', p.squeeze(),
                        fmt='%.3f', delimiter=',')
 
     stderrs = rbm.std_err()
     for se, param, name in zip(stderrs, params, param_names):
-        v = param.squeeze()
+        p = param.eval()
+        v = p.squeeze()
         shp = v.shape
-        np.savetxt('params/'+name+'stderrs.csv', se.reshape(shp),
+        np.savetxt('params/'+name+'stderrs_'+rbm.name+'.csv', se.reshape(shp),
                    fmt='%.3f', delimiter=',')
-        np.savetxt('params/'+name+'tstat.csv', v / se.reshape(shp),
-                   fmt='%.3f', delimiter=',')
+        np.savetxt('params/'+name+'tstat_'+rbm.name+'.csv', 
+                   v / se.reshape(shp), fmt='%.3f', delimiter=',')
 
     print('train complete')
 
@@ -1003,7 +1018,7 @@ net = {
                         VARIABLE_DTYPE_CATEGORY],
     'noisy_rectifier': True,
     'learning_rate': 1e-3,
-    'gibbs_steps': 2,
+    'gibbs_steps': 1,
     'shapes': {},
     'amsgrad': True,
     'alpha': 1.0,
@@ -1013,11 +1028,11 @@ net = {
 if __name__ == '__main__':
     dataset = SetupH5PY.load_dataset('data.h5')
     model = RBM('net5', net)
-    main(model, dataset, epochs=10)
+    main(model, dataset, epochs=50)
     del(model)
     
-    for i in range(10, 55, step=5):
+    for i in np.arange(10, 55, step=5):
         net['n_hidden'] = (i,)
-        model = RBM('net'+i, net)
+        model = RBM('net'+str(i), net)
         main(model, dataset, epochs=10)
         del(model)
