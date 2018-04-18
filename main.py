@@ -546,7 +546,7 @@ class RBM(Network):
 
             elif dtype == VARIABLE_DTYPE_CATEGORY:
                 # softmax temperature value \tau (default=1)
-                tau = 1. / v1.shape[-1]
+                tau = 1 / v1.shape[-1]
                 epsilon = 1e-10  # small value to prevent log(0)
                 uniform = self.theano_rng.uniform(
                     size=v1.shape,
@@ -568,9 +568,9 @@ class RBM(Network):
             elif dtype == VARIABLE_DTYPE_REAL:
                 v1_mean = v1
                 v1_std = T.nnet.sigmoid(v1)
-                normal_sample = self.theano_rng.normal(
+                normal_sample = v1_mean + v1_std * self.theano_rng.normal(
                     size=v1_mean.shape,  # (rows, items, cats)
-                    avg=v1_mean,
+                    avg=0.,
                     std=1.,
                     dtype=DTYPE_FLOATX
                 )
@@ -585,7 +585,7 @@ class RBM(Network):
                         std=v1_std,
                         dtype=DTYPE_FLOATX
                     )
-                    v1_sample = T.nnet.relu(normal_sample)
+                    v1_sample = T.nnet.softplus(normal_sample)
                 else:
                     # slower implementation of NReLu but more accurate
                     # values and samples exact integers from v1
@@ -652,7 +652,7 @@ class RBM(Network):
         for i, (logit, label) in enumerate(zip(logits, labels)):
             # small value for tau to mimic argmax but with differentiable
             # gradients
-            tau = 1. / logit.shape[-1]
+            tau = 0.5
             epsilon = 1e-8  # small value to prevent log(0)
             uniform = self.theano_rng.uniform(
                 size=logit.shape,
@@ -679,7 +679,7 @@ class RBM(Network):
             dcost += self.get_loglikelihood(p_y_given_x, label)
 
         # prepare visible samples from x input and y outputs
-        # v0_samples = self.input + self.output
+        # ! v0_samples = self.input + self.output
         v0_samples = self.input + y0_samples
         # perform positive Gibbs sampling phase
         # one step Gibbs sampling p(h|v1,v2,...) = p(h|v1)+p(h|v2)+...
@@ -750,12 +750,15 @@ class RBM(Network):
         labels = self.label
         logits = self.discriminative_free_energy()
         cost = []
+        errors = []
         updates = OrderedDict()
 
         params = self.B_params_f + self.cbias_f
         for i, (logit, label) in enumerate(zip(logits, labels)):
             p_y_given_x = T.nnet.softmax(logit)
             cost.append(self.get_loglikelihood(p_y_given_x, label))
+            pred = T.argmax(p_y_given_x, axis=-1)
+            errors.append(T.neq(pred, label))
             # calculate the gradients
             grads = T.grad(
                 cost=cost[i],
@@ -775,7 +778,7 @@ class RBM(Network):
             for var, expr in update:
                 updates[var] = expr
 
-        return [T.sum(cost)], updates
+        return [T.sum(cost)], updates, errors
 
     def pseudo_loglikelihood(self, inputs, preactivation):
         """
@@ -867,7 +870,7 @@ class RBM(Network):
         n_slice = self.hyperparameters['slice']
 
         gibbs_cost, gibbs_updates = self.get_generative_cost_updates(k, lr)
-        cost, updates = self.get_discriminative_cost_updates(lr)
+        cost, updates, errors = self.get_discriminative_cost_updates(lr)
 
         tensor_inputs = self.input + self.output + self.label
         tensor_outputs = gibbs_cost + cost
@@ -895,6 +898,18 @@ class RBM(Network):
                 for key, val in zip(tensor_inputs, shared_inputs)
             },
             name='train',
+            allow_input_downcast=True,
+            on_unused_input='ignore'
+        )
+
+        self.validate = theano.function(
+            inputs=[i],
+            outputs=errors,
+            givens={
+                key: val[start_idx: end_idx]
+                for key, val in zip(tensor_inputs, shared_inputs)
+            },
+            name='validate',
             allow_input_downcast=True,
             on_unused_input='ignore'
         )
@@ -969,21 +984,30 @@ def main(rbm, h5py_dataset, epochs):
     while epoch < epochs:
         epoch += 1
         cost = []
+        errors = []
         for i in range(n_batches):
-            cost_items = rbm.train(i)
-            cost.append(cost_items)
-            if i == n_batches // 2:
-                print('{0:d}/{1:d} {cost} {time:.2f}m'.format(
-                    i, n_batches, cost=[np.round(c, 3) for c in cost_items],
-                    time=(time.time()-t0)/60.))
+            if i <= (n_batches * 0.9):
+                cost_items = rbm.train(i)
+                cost.append(cost_items)
+                if i == n_batches // 2:
+                    print('{0:d}/{1:d} {c} t: {time:.2f} m'.format(
+                        i, n_batches, c=[np.round(c, 3) for c in cost_items],
+                        time=(time.time()-t0)/60.))
+            else:
+                error = rbm.validate(i)
+                errors.append(error)
+
         ep_cost = np.asarray(cost).sum(axis=0)
-        print(("epoch {0:d}/{1:d}"
-               " gibbs cost: {2:.3f},"
-               " mse cost: {3:.3f}, {4:.3f},"
-               " loglikelihood {5:.3f} t={time:.5f}m").format(
-               epoch, epochs, *ep_cost, time=(time.time()-t0)/60.))
+        ep_error = np.asarray(errors).mean() * 100
+        print(("epoch {0:d}/{1:d} "
+               "validation error {valid:.3f}% t: {time:.2f} m\n"
+               "gibbs cost: {2:.3f}, mse cost: {3:.3f}, {4:.3f}\n"
+               "loglikelihood: {5:.3f}").format(
+               epoch, epochs, *ep_cost, time=(time.time()-t0)/60.,
+               valid=ep_error))
         for i, (key, curve) in enumerate(rbm.monitoring_curves.items()):
-            rbm.monitoring_curves[key].append((epoch, ep_cost[i]))
+            stats = ep_cost.tolist() + [ep_error]
+            rbm.monitoring_curves[key].append((epoch, stats[i]))
 
         if (epoch % 5) == 0:
             print('checkpoint')
@@ -1003,14 +1027,14 @@ def main(rbm, h5py_dataset, epochs):
         shp = v.shape
         np.savetxt('params/'+name+'stderrs_'+rbm.name+'.csv', se.reshape(shp),
                    fmt='%.3f', delimiter=',')
-        np.savetxt('params/'+name+'tstat_'+rbm.name+'.csv', 
+        np.savetxt('params/'+name+'tstat_'+rbm.name+'.csv',
                    v / se.reshape(shp), fmt='%.3f', delimiter=',')
 
     print('train complete')
 
 net = {
     'debug': True,
-    'n_hidden': (5,),
+    'n_hidden': (30,),
     'seed': 1111,
     'batch_size': 128,
     'variable_dtypes': [VARIABLE_DTYPE_BINARY,
@@ -1027,12 +1051,12 @@ net = {
 
 if __name__ == '__main__':
     dataset = SetupH5PY.load_dataset('data.h5')
-    model = RBM('net5', net)
-    main(model, dataset, epochs=50)
+    model = RBM('net30', net)
+    main(model, dataset, epochs=100)
     del(model)
-    
-    for i in np.arange(10, 55, step=5):
+
+    for i in np.arange(35, 55, step=5):
         net['n_hidden'] = (i,)
         model = RBM('net'+str(i), net)
-        main(model, dataset, epochs=10)
+        main(model, dataset, epochs=100)
         del(model)
