@@ -579,10 +579,10 @@ class RBM(Network):
             elif dtype == VARIABLE_DTYPE_INTEGER:
                 if self.hyperparameters['noisy_rectifier'] is True:
                     v1_std = T.nnet.sigmoid(v1)
-                    normal_sample = self.theano_rng.normal(
+                    normal_sample = v1 + v1_std * self.theano_rng.normal(
                         size=v1.shape,
-                        avg=v1,
-                        std=v1_std,
+                        avg=0.,
+                        std=1.,
                         dtype=DTYPE_FLOATX
                     )
                     v1_sample = T.nnet.softplus(normal_sample)

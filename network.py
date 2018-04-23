@@ -23,7 +23,8 @@ class Network(object):
                 'CD error': [],
                 'MSE 1': [],
                 'MSE 2': [],
-                'log likelihood': []
+                'log likelihood': [],
+                'validation error': []
             }
             std_err = {}
 
@@ -99,6 +100,7 @@ class Network(object):
         )
         fig.set
         fig.savefig(self.name)
+        plt.close()
 
     def get_loglikelihood(self, prob, label):
         """
