@@ -11,6 +11,17 @@ VARIABLE_TYPE_INTEGER = 'integer'
 DTYPE_FLOATX = theano.config.floatX
 
 
+def init_tensor(shape, name):
+    ndims = len(shape)
+    if ndims == 1:
+        return T.matrix(name)
+    elif ndims == 2:
+        return T.tensor3(name)
+    else:
+        print('ndimerror@', name)
+        return None
+
+
 class Metric(object):
     def __init__(self):
         pass
@@ -64,6 +75,7 @@ class SetupH5PY(object):
     @staticmethod
     def compile_dataset(filename='datatable_sm.csv', frac=1.):
         df = pd.read_csv(filename)
+        df = df.loc[(df['duration']/60) < 600.]
         df = df.sample(frac=frac)
         with h5py.File('data.h5', 'w') as f:
             f.attrs['n_rows'] = len(df)
@@ -99,21 +111,21 @@ class SetupH5PY(object):
             # ! avg_speed
             f.create_dataset(
                 name='avg_speed/data',
-                data=df['avg_speed'].values.reshape(len(df), 1)/18.726,
+                data=df['avg_speed'].values.reshape(len(df), 1)/18.76,
                 dtype=DTYPE_FLOATX
             )
-            f['avg_speed'].attrs['stdev'] = 18.726
-            f['avg_speed'].attrs['mean'] = 23.277
+            f['avg_speed'].attrs['stdev'] = 18.76
+            f['avg_speed'].attrs['mean'] = 23.077
             f['avg_speed'].attrs['dtype'] = VARIABLE_TYPE_INTEGER
 
             # ! duration
             f.create_dataset(
                 name='duration/data',
-                data=(df['duration'].values/60).reshape(len(df), 1)/131.666,
+                data=(df['duration'].values/60.).reshape(len(df), 1)/21.52,
                 dtype=DTYPE_FLOATX
             )
-            f['duration'].attrs['stdev'] = 131.666
-            f['duration'].attrs['mean'] = 24.34
+            f['duration'].attrs['stdev'] = 21.52
+            f['duration'].attrs['mean'] = 22.94
             f['duration'].attrs['dtype'] = VARIABLE_TYPE_INTEGER
 
             # ! n_coord
@@ -141,7 +153,7 @@ class SetupH5PY(object):
             f.create_dataset(
                 name='interval/data',
                 data=df[['startintervalsin', 'startintervalcos',
-                         'endintervalsin', 'endintervalcos']].values/stdev,
+                         'endintervalsin', 'endintervalcos']].values,
                 dtype=DTYPE_FLOATX
             )
             f['interval'].attrs['stdev'] = stdev
@@ -151,7 +163,7 @@ class SetupH5PY(object):
             stdev = [0.718, 0.690]
             f.create_dataset(
                 name='dow/data',
-                data=df[['startdowsin', 'startdowcos']].values/stdev,
+                data=df[['startdowsin', 'startdowcos']].values,
                 dtype=DTYPE_FLOATX
             )
             f['dow'].attrs['stdev'] = stdev
@@ -161,7 +173,7 @@ class SetupH5PY(object):
             stdev = [0.719, 0.679]
             f.create_dataset(
                 name='dom/data',
-                data=df[['startdomsin', 'startdomcos']].values/stdev,
+                data=df[['startdomsin', 'startdomcos']].values,
                 dtype=DTYPE_FLOATX
             )
             f['dom'].attrs['stdev'] = stdev
@@ -171,7 +183,7 @@ class SetupH5PY(object):
             stdev = [0.113, 0.152]
             f.create_dataset(
                 name='doy/data',
-                data=df[['startdoysin', 'startdoycos']].values/stdev,
+                data=df[['startdoysin', 'startdoycos']].values,
                 dtype=DTYPE_FLOATX
             )
             f['doy'].attrs['stdev'] = stdev
@@ -185,7 +197,7 @@ class SetupH5PY(object):
                 name='startpoint/data',
                 data=df[['pt0lat', 'pt0lon', 'pt1lat', 'pt1lon',
                          'pt2lat', 'pt2lon', 'pt3lat', 'pt3lon',
-                         'pt4lat', 'pt4lon']].values/stdev,
+                         'pt4lat', 'pt4lon']].values,
                 dtype=DTYPE_FLOATX
             )
             f['startpoint'].attrs['stdev'] = stdev
@@ -199,7 +211,7 @@ class SetupH5PY(object):
                 name='endpoint/data',
                 data=df[['ptnm0lat', 'ptnm0lon', 'ptnm1lat', 'ptnm1lon',
                          'ptnm2lat', 'ptnm2lon', 'ptnm3lat', 'ptnm3lon',
-                         'ptnm4lat', 'ptnm4lon']].values/stdev,
+                         'ptnm4lat', 'ptnm4lon']].values,
                 dtype=DTYPE_FLOATX
             )
             f['endpoint'].attrs['stdev'] = stdev
