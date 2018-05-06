@@ -7,6 +7,8 @@ from collections import OrderedDict
 from optimizers import Optimizers
 from pylab import rcParams
 
+DTYPE_FLOATX = theano.config.floatX
+
 
 class Network(object):
     def __init__(self, name, hyper, load_params=False):

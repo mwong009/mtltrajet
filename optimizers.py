@@ -2,6 +2,8 @@ import theano
 import numpy as np
 import theano.tensor as T
 
+DTYPE_FLOATX = theano.config.floatX
+
 
 class Optimizers(object):
     def __init__(self, name=None):
@@ -191,7 +193,7 @@ class Optimizers(object):
         """
         updates = []
         # initialize timestep
-        i = theano.shared(np.zeros((1,), dtype=theano.config.floatX))
+        i = theano.shared(np.zeros((1,), dtype=DTYPE_FLOATX))
         # increment timestep
         i_t = i + 1.
         # adjust learning rate at timestep
@@ -203,17 +205,17 @@ class Optimizers(object):
             size = param.shape.eval()
             # 1st moment vector
             m = theano.shared(
-                value=np.zeros(shape=size, dtype=theano.config.floatX),
+                value=np.zeros(shape=size, dtype=DTYPE_FLOATX),
                 name='m_0'
             )
             # 2nd moment vector
             v = theano.shared(
-                value=np.zeros(shape=size, dtype=theano.config.floatX),
+                value=np.zeros(shape=size, dtype=DTYPE_FLOATX),
                 name='v_0'
             )
             if amsgrad:
                 vhat = theano.shared(
-                    value=np.zeros(shape=size, dtype=theano.config.floatX),
+                    value=np.zeros(shape=size, dtype=DTYPE_FLOATX),
                     name='v_hat'
                 )
             # momentum calculation

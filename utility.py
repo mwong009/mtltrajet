@@ -72,16 +72,21 @@ class SetupH5PY(object):
         f = h5py.File(filename, 'r')
         return f
 
-    @staticmethod
-    def compile_dataset(filename='datatable.csv', frac=1.):
-    # def compile_dataset(filename='datatable_sm.csv', frac=1.):
+    # @staticmethod
+    # def compile_dataset(filename='datatable_sm.csv', frac=1., dropout=1.):
+    def compile_dataset(filename='datatable.csv', frac=1., dropout=0.50,
+                        h5file='data_valid_50.h5'):
         df = pd.read_csv(filename)
         df = df.loc[(df['duration']/60) < 600.]
         if filename == 'datatable.csv':
             df = df.loc[df['mode'] == 0]
         df = df.sample(frac=frac)
-        with h5py.File('data_valid.h5', 'w') as f:
+        if dropout < 1:
+            for column in df.columns:
+                df[column] = df[column] * np.random.binomial(
+                    1, dropout, len(df[column]))
         # with h5py.File('data.h5', 'w') as f:
+        with h5py.File(h5file, 'w') as f:
             f.attrs['n_rows'] = len(df)
 
             # ! mode (max=6)
