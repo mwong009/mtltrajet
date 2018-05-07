@@ -1,4 +1,5 @@
 import h5py
+import os
 import time
 import theano
 import numpy as np
@@ -29,6 +30,31 @@ def get_time(t0):
     return hours, minutes, seconds
 
 
+def save_samples(path, name, x, y, samples, steps, i):
+    filepath = '{0:s}{1:s}_{2:d}draws_epoch{3:d}.csv'.format(
+        path, name, steps, i)
+    df = pd.DataFrame()
+    if not os.path.isdir(path):
+        os.mkdir(path)
+    for target in (y + x):
+        df[target] = ''
+
+    for j, (sample, target) in enumerate(zip(samples, (x + y))):
+        target_name = target.name.strip('/')
+        if target.attrs['dtype'] == VARIABLE_DTYPE_CATEGORY:
+            # classification
+            gen_class = (np.argmax(sample, axis=-1) + 1).squeeze()
+            df[target_name] = gen_class
+        else:
+            if sample.shape[-1] > 1:
+                df[target_name] = np.round(sample, 3).tolist()
+            else:
+                df[target_name] = np.round(sample, 3)
+
+    with open(filepath, 'w+') as f:
+        df.to_csv(f, header=True, index=False)
+
+
 class Metric(object):
     def __init__(self):
         pass
@@ -44,6 +70,27 @@ class Metric(object):
         for r in labels:
             hist[r] += 1
         return hist
+
+    @staticmethod
+    def loglikelihood(prob, label):
+        """
+        get_sample_loglikelihood func
+            Approximation to the reconstruction error
+
+        Parameters
+        ----------
+        prob : `[T.shared]`
+            list of precomputed "logits"
+        label : `[T.shared]`
+            list of output "labels"
+
+        Returns
+        -------
+        nll : `scalar`
+            value of the negative log likelihood
+        """
+        nll = -T.sum((T.log(prob)[T.arange(label.shape[0]), label]))
+        return nll
 
     @staticmethod
     def kappa(y1, y2, num_cat=None, weighted='quadratic'):

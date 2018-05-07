@@ -9,7 +9,7 @@ from collections import OrderedDict
 
 # internal imports
 from network import Network
-from utility import SetupH5PY, init_tensor, get_time
+from utility import *
 
 # environmental variables
 os.environ['OMP_NUM_THREADS'] = '4'
@@ -703,13 +703,13 @@ class RBM(Network):
         sigmas = []
         for i, (logit, label) in enumerate(zip(dinitial_cost, labels)):
             p_y_given_x = T.nnet.softmax(logit)
-            dcost += self.get_loglikelihood(p_y_given_x, label)
+            dcost += Metric.loglikelihood(p_y_given_x, label)
             pred = T.argmax(p_y_given_x, axis=-1)
             errors = T.neq(pred, label)
 
             # calculate the Hessians
             hessians = T.hessian(
-                cost=self.get_loglikelihood(p_y_given_x, label),
+                cost=Metric.loglikelihood(p_y_given_x, label),
                 wrt=dg_params,
                 disconnected_inputs='ignore'
             )
@@ -752,7 +752,7 @@ class RBM(Network):
         scan_out = 3*len(chain_start)*[None] + [None, None, h0_samples]
 
         # theano scan function to loop over all Gibbs steps k
-        # [h1_pre, h1_means, h1_samples, v1_pre[], v1_means[], v1_samples[]]
+        # [v1_pre[], v1_means[], v1_samples[], h1_pre, h1_means, h1_samples]
         # outputs are given by outputs_info
         # [[t,t+1,t+2,...], [t,t+1,t+2,...], ], gibbs_updates
         # NOTE: scan returns a dictionary of updates
@@ -980,29 +980,6 @@ class RBM(Network):
                 np.savetxt(f, v / se.reshape(shp), fmt='%.3f', delimiter=',')
 
 
-def save_samples(path, name, x, y, samples, steps, i):
-    filepath = '{0:s}{1:s}_{2:d}draws_epoch{3:d}.csv'.format(
-        path, name, steps, i)
-    df = pd.DataFrame()
-    if not os.path.isdir(path):
-        os.mkdir(path)
-
-    for j, (sample, target) in enumerate(zip(samples, (y + x))):
-        target_name = target.name.strip('/')
-        if target.attrs['dtype'] == VARIABLE_DTYPE_CATEGORY:
-            # classification
-            gen_class = (np.argmax(sample, axis=-1) + 1).squeeze()
-            df[target_name] = gen_class
-        else:
-            if sample.shape[-1] > 1:
-                df[target_name] = np.round(sample, 3).tolist()
-            else:
-                df[target_name] = np.round(sample, 3)
-
-    with open(filepath, 'w+') as f:
-        df.to_csv(f, header=True, index=False)
-
-
 def main(rbm, h5py_dataset, valid_dataset, epochs, t0=time.time()):
     n_samples = h5py_dataset.attrs['n_rows']
     rbm.hyperparameters['n_samples'] = n_samples
@@ -1062,7 +1039,7 @@ def main(rbm, h5py_dataset, valid_dataset, epochs, t0=time.time()):
         if (epoch % 50) == 0:
             rbm.save_params(epoch)
 
-        if (epoch % 250) == 0:
+        if (epoch % (epochs / 2)) == 0:
             for steps in [10, 50, 100, 500]:
                 hr, mn, sc = get_time(t0)
                 print(
