@@ -2,6 +2,7 @@ import theano
 import pickle
 import numpy as np
 import theano.tensor as T
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import matplotlib.pyplot as plt
 from collections import OrderedDict
 from optimizers import Optimizers
@@ -32,7 +33,7 @@ class Network(object):
 
         # initialize random number generator
         self.np_rng = np.random.RandomState(hyper['seed'])
-        self.theano_rng = T.shared_randomstreams.RandomStreams(hyper['seed'])
+        self.theano_rng = RandomStreams(hyper['seed'])
 
         self.name = name
         self.model_values = model_values
@@ -43,8 +44,12 @@ class Network(object):
 
         # Optimizer
         opt = Optimizers()
-        if hyper['amsgrad']:
+        if hyper['learner'] == 'amsgrad':
             self.update_opt = opt.adam_updates
+        elif hyper['learner'] == 'momentum':
+            self.update_opt = opt.momentum_updates
+        elif hyper['learner'] == 'rmsprop':
+            self.update_opt = opt.rmsprop_updates
         else:
             self.update_opt = opt.sgd_updates
 

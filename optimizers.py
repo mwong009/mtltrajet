@@ -43,7 +43,7 @@ class Optimizers(object):
         return updates
 
     def rmsprop_updates(self, params, grads, learning_rate=1e-3, rho=0.9,
-                        e=1e-8, nesterov=False):
+                        e=1e-8):
         """
         rmsprop_updates func
 
@@ -85,37 +85,23 @@ class Optimizers(object):
                 value=np.zeros(shape=size, dtype=theano.config.floatX),
                 name='accu'
             )
-            if nesterov:
-                # momentum velocity
-                v = theano.shared(
-                    value=np.zeros(shape=size, dtype=theano.config.floatX),
-                    name='v_0'
-                )
             # update accumulator
-            accu_new = rho * accu + (1. - rho) * grad**2
-            # RMSProp
-            rmsprop = - learning_rate * grad / T.sqrt(accu_new + e)
-            if nesterov:
-                # velocity update
-                v_new = m * v + rmsprop
-                # Nesterov accelerated momentum
-                rmsprop = v_new + m * (v_new - v)
-                updates.append((v, v_new))
-
+            accu_new = rho * accu + (1. - rho) * T.sqr(grad)
             updates.append((accu, accu_new))
-            updates.append((param, param + rmsprop))
+
+            # RMSProp
+            rmsgrad = T.maximum(T.sqrt(accu_new), e)
+            inc = - learning_rate * grad / rmsgrad
+            updates.append((param, param + inc))
 
         return updates
 
-    def nesterov_updates(self, params, grads, learning_rate=1e-3, m=0.9):
+    def momentum_updates(self, params, grads, learning_rate=1e-3, m=0.9,
+                         nesterov=True):
         """
-        nesterov_updates func
+        momentum_updates func
 
         SGD with Nesterov Accelerated Gradient (NAG) momentum
-            Generates update expressions of the form:
-            v_new := momentum * velocity - learning_rate * gradient
-            nesterov := v_new + momentum * (v_new - velocity)
-            param_new := param + nesterov
 
         Parameters
         ----------
@@ -135,27 +121,27 @@ class Optimizers(object):
             (variable, update expression)
         """
         updates = []
+        lr = learning_rate * (1 - m)
         for param, grad in zip(params, grads):
-            size = param.shape.eval()
+            size = param.eval().shape
             # momentum velocity
             v = theano.shared(
-                value=np.zeros(shape=size, dtype=theano.config.floatX),
+                value=np.zeros(size, DTYPE_FLOATX),
                 name='v_0'
             )
-            # vanilla update
-            sgd = - learning_rate * grad
             # velocity update
-            v_new = m * v + sgd
-            # Nesterov accelerated momentum
-            v_nes = v_new + m * (v_new - v)
+            inc = m * v - lr * grad
+            updates.append((v, inc))
 
-            updates.append((v, v_new))
-            updates.append((param, param + v_nes))
+            # Nesterov accelerated momentum
+            if nesterov:
+                inc = m * inc - lr * grad
+            updates.append((param, param + inc))
 
         return updates
 
-    def adam_updates(self, params, grads, learning_rate=1e-3, b1=0.9, b2=0.999,
-                     e=1e-8, amsgrad=True):
+    def adam_updates(self, params, grads, lr=1e-3, b1=0.9, b2=0.999, e=1e-8,
+                     amsgrad=True):
         """
         adam_updates func
 
@@ -193,47 +179,46 @@ class Optimizers(object):
         """
         updates = []
         # initialize timestep
-        i = theano.shared(np.zeros((1,), dtype=DTYPE_FLOATX))
+        one = T.constant(1)
+        i = theano.shared(np.float32(0.))
         # increment timestep
         i_t = i + 1.
         # adjust learning rate at timestep
-        fix1 = 1. - b1**i_t
-        fix2 = 1. - b2**i_t
-        lr_t = (learning_rate * (T.sqrt(fix2) / fix1)).eval()
+        a_t = lr * T.sqrt(one - b2**i_t) / (one - b1**i_t)
 
         for param, grad in zip(params, grads):
-            size = param.shape.eval()
+            size = param.eval().shape
             # 1st moment vector
             m = theano.shared(
-                value=np.zeros(shape=size, dtype=DTYPE_FLOATX),
+                value=np.zeros(size, DTYPE_FLOATX),
                 name='m_0'
             )
             # 2nd moment vector
             v = theano.shared(
-                value=np.zeros(shape=size, dtype=DTYPE_FLOATX),
+                value=np.zeros(size, DTYPE_FLOATX),
                 name='v_0'
             )
             if amsgrad:
                 vhat = theano.shared(
-                    value=np.zeros(shape=size, dtype=DTYPE_FLOATX),
+                    value=np.zeros(size, DTYPE_FLOATX),
                     name='v_hat'
                 )
             # momentum calculation
-            m_t = (grad * (1. - b1)) + (m * b1)
-            v_t = (T.sqr(grad) * (1. - b2)) + (v * b2)
+            m_t = b1 * m + (one - b1) * grad
+            v_t = b2 * v + (one - b2) * grad**2
+            updates.append((v, v_t))
+            updates.append((m, m_t))
+
             if amsgrad:
-                vhat_t = theano.tensor.switch(T.gt(vhat, v_t), vhat, v_t)
+                vhat_t = T.maximum(vhat, v_t)
                 grad_t = m_t / (T.sqrt(vhat_t) + e)
                 updates.append((vhat, vhat_t))
             else:
                 grad_t = m_t / (T.sqrt(v_t) + e)
 
             # Adam update rule
-            adam = - lr_t * grad_t
-
-            updates.append((v, v_t))
-            updates.append((m, m_t))
-            updates.append((param, param + adam))
+            adam = a_t * grad_t
+            updates.append((param, param - adam))
 
         updates.append((i, i_t))
         return updates
