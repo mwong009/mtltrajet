@@ -15,6 +15,8 @@ DTYPE_FLOATX = theano.config.floatX
 
 def init_tensor(shape, name):
     ndims = len(shape)
+    if ndims == 0:
+        return T.ivector(name)
     if ndims == 1:
         return T.matrix(name)
     elif ndims == 2:
@@ -134,7 +136,7 @@ class SetupH5PY(object):
         df = df.loc[(df['duration']/60) < 600.]
         if filename == 'datatable.csv':
             df = df.loc[df['mode'] == 0]
-        df = df.sample(frac=frac)
+        # df = df.sample(frac=frac)
         if dropout < 1:
             for column in df.columns:
                 df[column] = df[column] * np.random.binomial(

@@ -8,6 +8,7 @@ from theano import shared
 from collections import OrderedDict
 from optimizers import Optimizers
 from utility import SetupH5PY, init_tensor
+from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 # CONSTANTS
 VARIABLE_DTYPE_BINARY = 'binary'
@@ -20,6 +21,9 @@ DTYPE_FLOATX = theano.config.floatX
 def main(data):
     # optimizer
     opt = Optimizers()
+
+    # sampler
+    theano_rng = RandomStreams(999)
 
     # import dataset
     n_samples = data.attrs['n_rows']
@@ -45,6 +49,8 @@ def main(data):
     asc_params = []
     asc_params_m = []
     beta_params_f = []
+    beta_params_s = []
+    beta_params_sf = []
     beta_params = []
     beta_params_m = []
 
@@ -76,42 +82,61 @@ def main(data):
         mask[..., -1] = 0.
         mask = mask.flatten()
         beta_value = np.zeros(np.prod(shp), DTYPE_FLOATX) * mask
+        sigma_value = 1e-3 * np.ones(np.prod(shp), DTYPE_FLOATX) * mask
 
-        beta_f = shared(beta_value, name)
-        beta_params_f.append(beta_f)
+        beta_params_f.append(shared(beta_value, name))
+        beta_params_sf.append(shared(sigma_value, name + '_sigma'))
 
-        beta_params.append(T.reshape(beta_f, shp))
+        beta_params.append(T.reshape(beta_params_f[-1], shp))
+        beta_params_s.append(T.reshape(beta_params_sf[-1], shp))
         beta_params_m.append(shared(mask, name + '_mask'))
 
-        params[name] = beta_f
+        params[name] = beta_params_f[-1]
+        params[name + '_sigma'] = beta_params_sf[-1]
         params_shp[name] = shp
+        params_shp[name + '_sigma'] = shp
 
     # compute the utility function
     utility = 0.
-    for x, b in zip(input, beta_params):
+    for x, b, s in zip(input, beta_params, beta_params_s):
+
+        normal_sample = b[..., None] + T.sqr(s)[..., None] * theano_rng.normal(
+            size=b.eval().shape + (1,),
+            avg=0.,
+            std=1.,
+            dtype=DTYPE_FLOATX
+        )
+
+        # normal_sample = b[..., None] + T.sqr(s)[..., None] * 0.
+
         ax = [np.arange(x.ndim)[1:], np.arange(b.ndim)[:-1]]
-        utility += T.tensordot(x, b, axes=ax)
+        utility += T.tensordot(x, normal_sample, axes=ax)
 
     for y, asc in zip(output, asc_params):
-        utility += asc
+        utility += asc[None, ..., None]
+        (d1, d2, d3) = utility.shape
+        utility = utility.reshape((d1 * d3, d2))
         p_y_given_x = T.nnet.softmax(utility)
-        cost = -T.sum(T.log(p_y_given_x)[T.arange(y.shape[0]), y])
+        # cost = -T.sum(T.log(p_y_given_x)[T.arange(y.shape[0]), y])
+        nll = T.log(p_y_given_x).reshape((d3, d1, d2))
+        nll = nll[:, T.arange(y.shape[0]), y]
+        cost = -T.sum(T.mean(nll, axis=0))
 
-    gparams = asc_params + beta_params_f
+    gparams = asc_params + beta_params_f + beta_params_sf
     grads = T.grad(cost, gparams)
 
     # mask gradient updates
-    mask = asc_params_m + beta_params_m
-    for j, grad in enumerate(grads):
-        grads[j] = grad * mask[j]
+    mask = asc_params_m + beta_params_m + beta_params_m
+    for j, g in enumerate(grads):
+        grads[j] = g * mask[j]
 
     # create list of updates to theano function
     updates = opt.sgd_updates(gparams, grads, lr)
 
-    stderrs = []
-    hessian = T.hessian(cost=cost, wrt=gparams)
-    stderr = [T.sqrt(f) for f in [T.diag(1. / h) for h in hessian]]
-    stderrs.extend(stderr)
+    # stderrs = []
+    # hessian = T.hessian(cost=cost, wrt=gparams)
+    # stderr = [T.sqrt(f) for f in [T.diag(1. / h) for h in hessian]]
+    # stderrs.extend(stderr)
 
     tensors = input + output
     shared_x = [shared(var['data'][:], borrow=True) for var in x_data]
@@ -123,6 +148,11 @@ def main(data):
     end_idx = (i + 1) * batch_size
 
     print('constructing Theano computational graph...')
+    plc = theano.function([], cost.shape, givens={
+            key: val[:batch_size]
+            for key, val in zip(tensors, shared_variables)
+        }
+        )
     train = theano.function(
         inputs=[i],
         outputs=cost,
@@ -135,18 +165,19 @@ def main(data):
         allow_input_downcast=True,
     )
 
-    std_err = theano.function(
-        inputs=[],
-        outputs=stderrs,
-        givens={
-            key: val[:]
-            for key, val in zip(tensors, shared_variables)
-        },
-        name='std errors',
-        allow_input_downcast=True,
-    )
+    # std_err = theano.function(
+    #     inputs=[],
+    #     outputs=stderrs,
+    #     givens={
+    #         key: val[:]
+    #         for key, val in zip(tensors, shared_variables)
+    #     },
+    #     name='std errors',
+    #     allow_input_downcast=True,
+    # )
 
     # train model
+    print(plc())
     print('training the model...')
     curves = []
     n_batches = n_samples // batch_size
@@ -168,7 +199,7 @@ def main(data):
               "{1:.3f} time {hh:02d}:{mm:02d}:{ss:05.2f}").format(
               epoch, epoch_cost, hh=int(hours), mm=int(minutes), ss=seconds))
 
-        if (epoch % 100) == 0:
+        if (epoch % 5) == 0:
             print('checkpoint')
             param_values = {}
             for name, param in params.items():
