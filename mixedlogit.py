@@ -82,7 +82,7 @@ def main(data):
         mask[..., -1] = 0.
         mask = mask.flatten()
         beta_value = np.zeros(np.prod(shp), DTYPE_FLOATX) * mask
-        sigma_value = 1e-3 * np.ones(np.prod(shp), DTYPE_FLOATX) * mask
+        sigma_value = np.ones(np.prod(shp), DTYPE_FLOATX) * mask
 
         beta_params_f.append(shared(beta_value, name))
         beta_params_sf.append(shared(sigma_value, name + '_sigma'))
@@ -98,6 +98,7 @@ def main(data):
 
     # compute the utility function
     utility = 0.
+    h_utility = 0.
     for x, b, s in zip(input, beta_params, beta_params_s):
 
         normal_sample = b[..., None] + T.sqr(s)[..., None] * theano_rng.normal(
@@ -107,17 +108,25 @@ def main(data):
             dtype=DTYPE_FLOATX
         )
 
-        # normal_sample = b[..., None] + T.sqr(s)[..., None] * 0.
-
         ax = [np.arange(x.ndim)[1:], np.arange(b.ndim)[:-1]]
         utility += T.tensordot(x, normal_sample, axes=ax)
+        if x.ndim > 2:
+            h_utility += T.tensordot(x, b + T.sqr(s), axes=[[1, 2], [0, 1]])
+        else:
+            h_utility += T.tensordot(x, b + T.sqr(s), axes=[[1], [0]])
 
     for y, asc in zip(output, asc_params):
         utility += asc[None, ..., None]
+        h_utility += asc
         (d1, d2, d3) = utility.shape
         utility = utility.reshape((d1 * d3, d2))
         p_y_given_x = T.nnet.softmax(utility)
-        # cost = -T.sum(T.log(p_y_given_x)[T.arange(y.shape[0]), y])
+
+        hessian_prob = T.nnet.softmax(h_utility)  #!
+        hessian_nll = T.log(hessian_prob)
+        hessian_cr = hessian_nll[T.arange(y.shape[0]), y]
+        hessian_cost = -T.sum(hessian_cr)
+
         nll = T.log(p_y_given_x).reshape((d3, d1, d2))
         nll = nll[:, T.arange(y.shape[0]), y]
         cost = -T.sum(T.mean(nll, axis=0))
@@ -130,13 +139,14 @@ def main(data):
     for j, g in enumerate(grads):
         grads[j] = g * mask[j]
 
-    # create list of updates to theano function
+    # create list of updates to iterate over
     updates = opt.sgd_updates(gparams, grads, lr)
 
-    # stderrs = []
-    # hessian = T.hessian(cost=cost, wrt=gparams)
-    # stderr = [T.sqrt(f) for f in [T.diag(1. / h) for h in hessian]]
-    # stderrs.extend(stderr)
+    # symbolic equation for the Hessian function
+    stderrs = []
+    hessian = T.hessian(cost=hessian_cost, wrt=gparams)
+    stderr = [T.sqrt(f) for f in [T.diag(2. / h) for h in hessian]]
+    stderrs.extend(stderr)
 
     tensors = input + output
     shared_x = [shared(var['data'][:], borrow=True) for var in x_data]
@@ -148,11 +158,7 @@ def main(data):
     end_idx = (i + 1) * batch_size
 
     print('constructing Theano computational graph...')
-    plc = theano.function([], cost.shape, givens={
-            key: val[:batch_size]
-            for key, val in zip(tensors, shared_variables)
-        }
-        )
+
     train = theano.function(
         inputs=[i],
         outputs=cost,
@@ -165,19 +171,18 @@ def main(data):
         allow_input_downcast=True,
     )
 
-    # std_err = theano.function(
-    #     inputs=[],
-    #     outputs=stderrs,
-    #     givens={
-    #         key: val[:]
-    #         for key, val in zip(tensors, shared_variables)
-    #     },
-    #     name='std errors',
-    #     allow_input_downcast=True,
-    # )
+    std_err = theano.function(
+        inputs=[],
+        outputs=stderrs,
+        givens={
+            key: val[:]
+            for key, val in zip(tensors, shared_variables)
+        },
+        name='std errors',
+        allow_input_downcast=True,
+    )
 
     # train model
-    print(plc())
     print('training the model...')
     curves = []
     n_batches = n_samples // batch_size
@@ -216,7 +221,9 @@ def main(data):
 
     # save parameters and stderrs to .csv
     stderrs = std_err()
-    for se, param, name in zip(stderrs, params.values(), params):
+    params_list = [p for p in asc_params + beta_params_f + beta_params_sf]
+    param_names = [p.name for p in asc_params + beta_params_f + beta_params_sf]
+    for se, param, name in zip(stderrs, params_list, param_names):
         v = param.eval().squeeze()
         shp = v.shape
         path = 'params/stderrs_{}.csv'.format(name)

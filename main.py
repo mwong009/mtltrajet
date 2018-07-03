@@ -306,6 +306,15 @@ class RBM(Network):
         for dtype, v, W, vbias, s in zip(dtypes, visibles, W_params,
                                          vbiases, vsigmas):
             # vbias_x: (rows,)
+            # ax = [np.arange(v.ndim)[1:], np.arange(vbias.ndim)[:-1]]
+            # if dtype == VARIABLE_DTYPE_CATEGORY:
+                # wx = T.tensordot(v, W, axes=ax)
+                # utility -= T.tensordot(v, vbias, axes=ax)
+            # else:
+                # wx = T.tensordot(v/T.sqr(s), W, axes=ax)
+                # vbias_x = 0.5 * T.sqr(v - vbias[None, ...]) / T.sqr(s)
+                # utility += T.sum(vbias_x, axis=ax[0])
+
             if dtype == VARIABLE_DTYPE_CATEGORY:
                 if vbias.ndim > 1:
                     vbias_x = T.tensordot(v, vbias, axes=[[1, 2], [0, 1]])
@@ -393,12 +402,14 @@ class RBM(Network):
         cbiases_m = self.cbias_m
 
         # rebroadcast (hiddens,): broadcast(T, F, T) --> ('x', 0, 'x')
+        # wx_b = hbias[None, :, None]
         wx_b = hbias.dimshuffle('x', 0, 'x')
         utility = []
 
         for cbias in cbiases:
             # (items, outs) --> ('x', outs)
             # utility = [cbias,...]  ('x', outs)
+            # utility.append(T.flatten(cbias)[None, :])
             cbias = -T.sum(cbias, axis=0)
             u = cbias.dimshuffle('x', 0)
             utility.append(u)
@@ -406,16 +417,20 @@ class RBM(Network):
         # loop over all input nodes
         # x : input variables
         # W, B : weights
-        # a : input biases
-        for x, xWh, B, dt in zip(visibles, xWh_params, B_params, dtypes):
-            # matrix dot product between input variables and hidden units
+        for x, W, B, dt in zip(visibles, xWh_params, B_params, dtypes):
+            # ax = [np.arange(x.ndim)[1:], np.arange(W.ndim)[:-1]]
+            # wx_b += T.tensordot(x, W, ax)[..., None]
+            # for i, WW in enumerate(hWy_params):
+                # wx_b += (T.sum(WW, axis=0)).dimshuffle('x', 1, 0)
+                # utility[i] -= T.tensordot(x, T.flatten(B, B.ndim-1), ax)
+
             # xw = xW_{ik} : (rows, hiddens)
             # wx_b = xW_{ik} + hbias : (rows, hiddens) --> (rows, hids, 'x')
-            if xWh.ndim == 2:
-                xw = T.dot(x, xWh)
+            if W.ndim == 2:
+                xw = T.dot(x, W)
                 wx_b += xw.dimshuffle(0, 1, 'x')
             else:
-                xw = T.tensordot(x, xWh, axes=[[1, 2], [0, 1]])
+                xw = T.tensordot(x, W, axes=[[1, 2], [0, 1]])
                 wx_b += xw.dimshuffle(0, 1, 'x')
 
             # loop over all output nodes
@@ -425,7 +440,6 @@ class RBM(Network):
                 hWy = T.sum(hWy, axis=0)
                 wx_b += hWy.dimshuffle('x', 1, 0)
                 # xB : (rows, items, cats) . (items, cats, items, outs)
-                # utility[i] = cbias + Bx : (rows, outs)
                 # utility[i] = cbias + Bx : (rows, outs)
                 if x.ndim > 2:
                     utility[i] -= T.tensordot(x, B, axes=[[1, 2], [0, 1]])
@@ -496,9 +510,13 @@ class RBM(Network):
     def propup(self, samples, weights, bias, sigmas, dtypes):
 
         preactivation = bias
-        # (rows, items, cats), (items, cats, hiddens)
-        # (rows, outs), (outs, hiddens)
         for v, W, s, dtype in zip(samples, weights, sigmas, dtypes):
+            # ax = [np.arange(v.ndim)[1:], np.arange(W.ndim)[:-1]]
+            # if dtype in [VARIABLE_DTYPE_INTEGER, VARIABLE_DTYPE_REAL]:
+                # preactivation += T.tensordot(v/T.sqr(s), W, ax)
+            # else:
+                # preactivation += T.tensordot(v, W, ax)
+
             if dtype in [VARIABLE_DTYPE_INTEGER, VARIABLE_DTYPE_REAL]:
                 if W.ndim == 2:
                     preactivation += T.dot(v/T.sqr(s), W)
