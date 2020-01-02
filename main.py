@@ -998,7 +998,7 @@ class RBM(Network):
                 np.savetxt(f, v / se.reshape(shp), fmt='%.3f', delimiter=',')
 
 
-def main(rbm, h5py_dataset, valid_dataset, epochs, t0=time.time()):
+def main(rbm, h5py_dataset, epochs, t0=time.time()):
     n_samples = h5py_dataset.attrs['n_rows']
     rbm.hyperparameters['n_samples'] = n_samples
     for key, value in rbm.hyperparameters.items():
@@ -1103,9 +1103,9 @@ net = {
 
 if __name__ == '__main__':
     data = SetupH5PY.load_dataset('data.h5')
-    data_valid = SetupH5PY.load_dataset('data_valid.h5')
+    # data_valid = SetupH5PY.load_dataset('data_valid.h5')
     for i in np.arange(5, 101, 5):
         net['n_hidden'] = (i,)
         model = RBM('net'+str(i), net)
-        main(model, data, data_valid, epochs=500)
+        main(model, data, epochs=500)
         del(model)
