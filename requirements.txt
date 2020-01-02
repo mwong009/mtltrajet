@@ -1,0 +1,4 @@
+h5py
+pandas
+numpy
+git+git://github.com/Theano/Theano.git
