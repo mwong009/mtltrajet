@@ -35,7 +35,7 @@ The [dataset](https://github.com/LiTrans/ML-MDC/blob/master/datatable_sm.csv) is
 
 ## Getting started
 
-```main.py``` script to run the estimation model to reproduce the results of the CRBM model
+run ```python3 main.py``` script to start the estimation to reproduce the results of the CRBM model
 
 ### Prerequisites
 
@@ -90,7 +90,7 @@ pip install -r requirements.txt
 
 ## Versioning
 
-0.1
+0.1 Initial version
 
 ## Authors
 
